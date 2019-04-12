@@ -1,0 +1,8 @@
+[package]
+name = "quirc"
+version = "0.1.0"
+authors = ["Amish Naidu <amhndu@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+nom = "^4.2.3"
