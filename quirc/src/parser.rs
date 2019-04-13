@@ -1,24 +1,8 @@
-#[derive(Debug, PartialEq)]
-enum Prefix<'a> {
-    Server {
-        host: &'a str,
-    },
-    User {
-        nick: &'a str,
-        username: Option<&'a str>,
-        host: &'a str,
-    },
-}
-
-#[derive(Debug)]
-struct Message<'a> {
-    prefix: Option<&'a [u8]>,
-    command: &'a [u8],
-    params: Vec<&'a [u8]>,
-}
+use crate::message::{Prefix, RawMessage};
 
 const SPACE: char = ' ';
 const COLON: char = ':';
+const CRLF: &str = "\r\n";
 
 fn to_prefix_server(input: &str) -> Prefix {
     Prefix::Server { host: input }
@@ -87,7 +71,7 @@ named!(trailing_params_parser<&[u8], Option<&str> >,
     )
 );
 
-named!(params_parser<&[u8], Vec<&str>>,
+named!(params_parser<&[u8], Vec<&str> >,
    do_parse!(
        middle: middle_params_parser         >>
        trailing: trailing_params_parser     >>
@@ -100,6 +84,23 @@ named!(params_parser<&[u8], Vec<&str>>,
            params
        })
    )
+);
+
+named!(raw_command_parser<&[u8], &str>,
+    map_res!(
+        alt!(nom::digit | nom::alpha),
+        std::str::from_utf8
+    )
+);
+
+named!(raw_message_parser<&[u8], RawMessage>,
+    do_parse!(
+        prefix: opt!(prefix_parser)           >>
+        command: raw_command_parser           >>
+        params: params_parser                 >>
+        tag!(CRLF)                            >>
+        (RawMessage { prefix, command, params })
+    )
 );
 
 #[cfg(test)]
@@ -155,8 +156,42 @@ mod tests {
             )
         );
         assert_eq!(
-            params_parser(b" first :last:with colons\r\n").unwrap(),
-            (&b"\r\n"[..], vec!["first", "last:with colons"])
+            params_parser(b" first :last:with: colons\r\n").unwrap(),
+            (&b"\r\n"[..], vec!["first", "last:with: colons"])
+        );
+    }
+
+    #[test]
+    fn message_test() {
+        assert_eq!(
+            raw_message_parser(b":Angel!wings@irc.org PRIVMSG Wiz :Are you receiving this message ?\r\n").unwrap(),
+            (&b""[..], RawMessage {
+                prefix: Some(Prefix::User {
+                    nick: "Angel",
+                    username: Some("wings"),
+                    host: "irc.org",
+                }),
+                command: "PRIVMSG",
+                params: vec!["Wiz", "Are you receiving this message ?"],
+            })
+        );
+        assert_eq!(
+            raw_message_parser(b"PING\r\n").unwrap(),
+            (&b""[..], RawMessage {
+                prefix: None,
+                command: "PING",
+                params: vec![],
+            })
+        );
+        assert_eq!(
+            raw_message_parser(b":irc.example.com 001 test Welcome\r\n").unwrap(),
+            (&b""[..], RawMessage {
+                prefix: Some(Prefix::Server {
+                    host: "irc.example.com"
+                }),
+                command: "001",
+                params: vec!["test", "Welcome"],
+            })
         );
     }
 }
