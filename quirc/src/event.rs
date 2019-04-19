@@ -11,7 +11,7 @@ pub enum Prefix<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct RawMessage<'a> {
+pub struct RawEvent<'a> {
     pub prefix: Option<Prefix<'a>>,
     pub command: &'a str,
     pub params: Vec<&'a str>,

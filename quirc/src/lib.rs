@@ -2,7 +2,7 @@
 extern crate nom;
 
 pub mod client;
-pub mod message;
+mod event;
 mod parser;
 mod stream;
 mod utils;

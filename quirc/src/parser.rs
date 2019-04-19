@@ -1,4 +1,4 @@
-use crate::message::{Prefix, RawMessage};
+use crate::event::{Prefix, RawEvent};
 
 const SPACE: char = ' ';
 const COLON: char = ':';
@@ -93,13 +93,13 @@ named!(raw_command_parser<&[u8], &str>,
     )
 );
 
-named!(raw_message_parser<&[u8], RawMessage>,
+named!(raw_event_parser<&[u8], RawEvent>,
     do_parse!(
         prefix: opt!(prefix_parser)           >>
         command: raw_command_parser           >>
         params: params_parser                 >>
         tag!(CRLF)                            >>
-        (RawMessage { prefix, command, params })
+        (RawEvent { prefix, command, params })
     )
 );
 
@@ -162,10 +162,10 @@ mod tests {
     }
 
     #[test]
-    fn message_test() {
+    fn event_test() {
         assert_eq!(
-            raw_message_parser(b":Angel!wings@irc.org PRIVMSG Wiz :Are you receiving this message ?\r\n").unwrap(),
-            (&b""[..], RawMessage {
+            raw_event_parser(b":Angel!wings@irc.org PRIVMSG Wiz :Are you receiving this message ?\r\n").unwrap(),
+            (&b""[..], RawEvent {
                 prefix: Some(Prefix::User {
                     nick: "Angel",
                     username: Some("wings"),
@@ -176,16 +176,16 @@ mod tests {
             })
         );
         assert_eq!(
-            raw_message_parser(b"PING\r\n").unwrap(),
-            (&b""[..], RawMessage {
+            raw_event_parser(b"PING\r\n").unwrap(),
+            (&b""[..], RawEvent {
                 prefix: None,
                 command: "PING",
                 params: vec![],
             })
         );
         assert_eq!(
-            raw_message_parser(b":irc.example.com 001 test Welcome\r\n").unwrap(),
-            (&b""[..], RawMessage {
+            raw_event_parser(b":irc.example.com 001 test Welcome\r\n").unwrap(),
+            (&b""[..], RawEvent {
                 prefix: Some(Prefix::Server {
                     host: "irc.example.com"
                 }),
