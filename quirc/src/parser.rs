@@ -1,4 +1,5 @@
-use crate::event::{Prefix, RawEvent};
+use crate::event::{Prefix, RawEvent, Event};
+use std::error::Error;
 
 const SPACE: char = ' ';
 const COLON: char = ':';
@@ -103,6 +104,34 @@ named!(raw_event_parser<&[u8], RawEvent>,
     )
 );
 
+fn parse_input<'a>(input: &'a [u8]) -> Event {
+    let raw_event = raw_event_parser(input)
+                        .map_err(|e| format!("Parsing Error: {}", e) );
+
+    let event_res = || -> Result<Event, String> {
+        const PARAM_ERROR: &str = "Expected parameter";
+
+        let (_, raw_event) = raw_event?;
+        Ok(match raw_event.command {
+            Event::Ping.to_string() => {
+                Event::Ping {
+                    server:  raw_event.params.get(0).ok_or(PARAM_ERROR)?.to_string(),
+                    server2: raw_event.params.get(1).map(|&s| s.to_string())
+                }
+            },
+            cmd => return Err(format!("Unknown command: {}", cmd))
+        })
+    };
+
+    match event_res() {
+        Ok(event) => event,
+        Err(error) => {
+            error!("quirc: Error while reading incoming message. {}", error);
+            Event::Unknown
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,7 +191,7 @@ mod tests {
     }
 
     #[test]
-    fn event_test() {
+    fn raw_event_test() {
         assert_eq!(
             raw_event_parser(b":Angel!wings@irc.org PRIVMSG Wiz :Are you receiving this message ?\r\n").unwrap(),
             (&b""[..], RawEvent {
@@ -192,6 +221,22 @@ mod tests {
                 command: "001",
                 params: vec!["test", "Welcome"],
             })
+        );
+    }
+
+    #[test]
+    fn event_test() {
+        assert_eq!(
+            parse_input(b":irc.example.com PING irc.example.com\r\n"),
+            Event::Ping {
+                server: "irc.example.com".to_string(),
+                server2: None
+            }
+        );
+
+        assert_eq!(
+            parse_input(b"MADEUP command\r\n"),
+            Event::Unknown
         );
     }
 }
